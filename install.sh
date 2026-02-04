@@ -123,7 +123,7 @@ if [ "$FRESH" = true ] && [ -n "$SANDBOX_ID" ]; then
 fi
 
 if [ -z "$SANDBOX_ID" ]; then
-  SANDBOX_ID=$(docker sandbox run -d -t my-sandbox -w "$PROJECT_DIR" claude)
+  SANDBOX_ID=$(cd "$PROJECT_DIR" && docker sandbox run -d -t my-sandbox claude)
   echo "$SANDBOX_ID" > "$STATE_FILE"
 fi
 
