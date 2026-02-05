@@ -17,37 +17,21 @@ PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
 # Sync config from ~/.claude/ and build image
 "$HOME/.claude-sandbox/rebuild.sh"
 
-# State file: stores sandbox ID per workspace
-STATE_DIR="$HOME/.claude-sandbox/sandboxes"
-mkdir -p "$STATE_DIR"
-STATE_FILE="$STATE_DIR/$(echo -n "$PROJECT_DIR" | shasum -a 256 | cut -c1-16)"
-
-# Try to reuse existing sandbox
-SANDBOX_ID=""
-if [ -f "$STATE_FILE" ]; then
-  SANDBOX_ID=$(cat "$STATE_FILE")
-  # Verify it's still alive
-  if ! docker exec "$SANDBOX_ID" true 2>/dev/null; then
-    SANDBOX_ID=""
-    rm -f "$STATE_FILE"
-  fi
-fi
+# Deterministic sandbox name from workspace path
+SANDBOX_NAME="claude-$(echo -n "$PROJECT_DIR" | shasum -a 256 | cut -c1-12)"
 
 # Force-recreate if --fresh
-if [ "$FRESH" = true ] && [ -n "$SANDBOX_ID" ]; then
-  docker sandbox rm "$SANDBOX_ID" >/dev/null 2>&1 || true
-  SANDBOX_ID=""
-  rm -f "$STATE_FILE"
+if [ "$FRESH" = true ]; then
+  docker sandbox rm "$SANDBOX_NAME" 2>/dev/null || true
 fi
 
-# Create new sandbox if needed
-if [ -z "$SANDBOX_ID" ]; then
-  SANDBOX_ID=$(docker sandbox run -d -t my-sandbox claude "$PROJECT_DIR")
-  echo "$SANDBOX_ID" > "$STATE_FILE"
+# Create sandbox if it doesn't exist (no-op if already running)
+if ! docker sandbox ls 2>/dev/null | grep -q "$SANDBOX_NAME"; then
+  docker sandbox create --load-local-template -t my-sandbox --name "$SANDBOX_NAME" claude "$PROJECT_DIR"
 fi
 
 # Fix settings.json (sandbox overwrites it with a dead symlink)
-docker exec -u root "$SANDBOX_ID" /opt/inject-config.sh
+docker sandbox exec -u root "$SANDBOX_NAME" /opt/inject-config.sh
 
 # Launch Claude interactively
-docker exec -it "$SANDBOX_ID" claude --dangerously-skip-permissions
+docker sandbox run "$SANDBOX_NAME"

@@ -103,32 +103,18 @@ PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
 
 "$HOME/.claude-sandbox/rebuild.sh"
 
-STATE_DIR="$HOME/.claude-sandbox/sandboxes"
-mkdir -p "$STATE_DIR"
-STATE_FILE="$STATE_DIR/$(echo -n "$PROJECT_DIR" | shasum -a 256 | cut -c1-16)"
+SANDBOX_NAME="claude-$(echo -n "$PROJECT_DIR" | shasum -a 256 | cut -c1-12)"
 
-SANDBOX_ID=""
-if [ -f "$STATE_FILE" ]; then
-  SANDBOX_ID=$(cat "$STATE_FILE")
-  if ! docker exec "$SANDBOX_ID" true 2>/dev/null; then
-    SANDBOX_ID=""
-    rm -f "$STATE_FILE"
-  fi
+if [ "$FRESH" = true ]; then
+  docker sandbox rm "$SANDBOX_NAME" 2>/dev/null || true
 fi
 
-if [ "$FRESH" = true ] && [ -n "$SANDBOX_ID" ]; then
-  docker sandbox rm "$SANDBOX_ID" >/dev/null 2>&1 || true
-  SANDBOX_ID=""
-  rm -f "$STATE_FILE"
+if ! docker sandbox ls 2>/dev/null | grep -q "$SANDBOX_NAME"; then
+  docker sandbox create --load-local-template -t my-sandbox --name "$SANDBOX_NAME" claude "$PROJECT_DIR"
 fi
 
-if [ -z "$SANDBOX_ID" ]; then
-  SANDBOX_ID=$(docker sandbox run -d -t my-sandbox claude "$PROJECT_DIR")
-  echo "$SANDBOX_ID" > "$STATE_FILE"
-fi
-
-docker exec -u root "$SANDBOX_ID" /opt/inject-config.sh
-docker exec -it "$SANDBOX_ID" claude --dangerously-skip-permissions
+docker sandbox exec -u root "$SANDBOX_NAME" /opt/inject-config.sh
+docker sandbox run "$SANDBOX_NAME"
 WRAPPER
 chmod +x "$SANDBOX_DIR/claude-sandbox"
 

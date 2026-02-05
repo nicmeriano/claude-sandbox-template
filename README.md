@@ -52,7 +52,7 @@ Sandboxes are reused across launches (auth credentials persist). Use `--fresh` t
 
 2. **`Dockerfile`** extends `docker/sandbox-templates:claude-code` — installs pnpm, copies config into `/home/agent/.claude/`.
 
-3. **`claude-sandbox`** reuses an existing sandbox for the workspace if one is running, or creates a new one. Fixes a `settings.json` issue (see below), then attaches Claude interactively.
+3. **`claude-sandbox`** uses `docker sandbox create` with `--load-local-template` to create a named sandbox for the workspace (reused on subsequent launches). Fixes a `settings.json` issue (see below) via `docker sandbox exec`, then runs Claude with `docker sandbox run`.
 
 ### The `settings.json` workaround
 
@@ -78,6 +78,5 @@ Docker sandbox overwrites `~/.claude/settings.json` with a symlink to `/mnt/clau
 ├── rebuild.sh          # syncs config from ~/.claude/ + builds image
 ├── claude-sandbox      # main entry point (add to PATH)
 ├── install.sh          # one-command setup
-├── claude-config/      # (generated) config snapshot for docker build
-└── sandboxes/          # (generated) sandbox ID state files
+└── claude-config/      # (generated) config snapshot for docker build
 ```
